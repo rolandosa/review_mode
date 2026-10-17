@@ -1,0 +1,8 @@
+RECREATE Page review_mode__c (
+   label('Review Mode'),
+   description('Full-screen, keyboard-driven document review workspace'),
+   active(true),
+   client_distribution('Clientdistribution.review_mode__c'),
+   page_client_code('Pageclientcode.review_mode__c'),
+   url_path_name('review-mode')
+);

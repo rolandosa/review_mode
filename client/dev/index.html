@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Review Mode (local harness)</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #fff; }
+        .fake-vault-header { height: 48px; background: #23303d; color: #fff; display: flex; align-items: center; padding: 0 16px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="fake-vault-header">Vault header (simulated)</div>
+    <div id="host"></div>
+    <script type="module">
+        // Minimal stand-in for the Vault Custom Page runtime: a shadow root, the module that
+        // @veeva/vault forwards to, and vaultLocation. API calls go through dev/server.mjs.
+        window.__vaultMeta = {};
+        window.__vaultModuleV5 = {
+            definePage: (initialize) => initialize,
+            vaultApiClient: { fetch: (path, init) => fetch(`/api${path}`, init) },
+        };
+        window.vaultLocation = window.location;
+
+        const shadow = document.getElementById('host').attachShadow({ mode: 'open' });
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = '/dist/index.css';
+        shadow.appendChild(css);
+        const element = document.createElement('div');
+        shadow.appendChild(element);
+
+        const { default: initialize } = await import('/dist/index.js');
+        initialize({ element, data: {}, pageContext: { reload: () => location.reload() }, sendEvent: async () => ({}) });
+    </script>
+</body>
+</html>

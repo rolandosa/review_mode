@@ -1,0 +1,7 @@
+RECREATE Tab review_mode__c (
+   active(true),
+   order(100),
+   label('Review Mode'),
+   page('Page.review_mode__c'),
+   url('https://${Vault.domain}/ui/#custom/page/${Page.url_path_name}')
+);

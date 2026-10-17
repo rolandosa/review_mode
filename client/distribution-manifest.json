@@ -1,0 +1,10 @@
+{
+    "name": "review_mode__c",
+    "pages": [
+        {
+            "name": "review_mode__c",
+            "file": "dist/index.js"
+        }
+    ],
+    "stylesheets": ["dist/index.css"]
+}
