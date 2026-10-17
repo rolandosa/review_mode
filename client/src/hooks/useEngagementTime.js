@@ -36,7 +36,7 @@ export default function useEngagementTime({ doc, userId, rootRef, pagesViewed })
     useEffect(() => {
         if (!doc) return undefined;
         let cancelled = false;
-        api.findMyTaskForDocument(userId, doc.id)
+        api.findMyTaskForDocument(doc.id)
             .then((found) => {
                 if (cancelled) return;
                 setTask(found);
@@ -49,7 +49,7 @@ export default function useEngagementTime({ doc, userId, rootRef, pagesViewed })
         return () => {
             cancelled = true;
         };
-    }, [doc, userId]);
+    }, [doc]);
 
     const markInput = useCallback(() => {
         lastInput.current = Date.now();

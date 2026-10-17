@@ -56,7 +56,7 @@ export default function App({ initialDocRef }) {
         <div className="rm-root" ref={rootRef}>
             {docRef
                 ? <ReviewWorkspace key={`${docRef.id}-${docRef.major}-${docRef.minor}`} docRef={docRef} user={user} onExit={() => setDocRef(null)} />
-                : <DocumentPicker user={user} onOpen={setDocRef} />}
+                : <DocumentPicker onOpen={setDocRef} />}
         </div>
     );
 }

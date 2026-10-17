@@ -17,12 +17,13 @@ brings real benefits for reviewers. See [docs/viewer-decision.md](docs/viewer-de
 - **Whole-document search** (`/`) with per-page snippets and highlights.
 - **Continuous scroll** with fit-width, fit-page, and zoom (`0`, `9`, `+`, `-`). Pages render lazily.
 - **Time on task:** while the document is on one of the reviewer's open workflow tasks, Review Mode measures active review time and saves it to Vault. See *Review time tracking* below.
-- **Document picker:** the reviewer's open workflow tasks, VQL search, and recent documents. Deep link with `?doc=<id>&version=<major.minor>`.
+- **Document picker:** every document task assigned or available to the reviewer (labelled *Assigned* / *Available*, with due date), VQL search, and recent documents. Deep link with `?doc=<id>&version=<major.minor>`.
 
 ## Review time tracking
 
-When a reviewer opens a document that is on one of their open workflow tasks (`active_workflow_task__sys`, owned by them, status
-`active__v` or `available__sys`), Review Mode measures how long they actually work on it:
+When a reviewer opens a document that is on one of their open workflow tasks (assigned to them, or available for them
+to accept, as returned by `/objects/objectworkflows/tasks?assignee__v=me()&status__v=available__v,assigned__v`),
+Review Mode measures how long they actually work on it:
 
 - **Active time** counts one second at a time, but only while the page is visible, the browser window has focus, and the reviewer
   has interacted with the workspace in the last 60 seconds: mouse movement, scrolling, keys, touch, typing, or creating, replying

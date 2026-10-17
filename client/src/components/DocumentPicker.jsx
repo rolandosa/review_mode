@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import * as api from '../api/vault';
-import { formatDate } from '../annotations';
+/** Due dates are date-only (YYYY-MM-DD); format without shifting across time zones. */
+function formatDueDate(value) {
+    const [y, m, d] = String(value).slice(0, 10).split('-').map(Number);
+    if (!y || !m || !d) return value;
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 const RECENT_KEY = 'review-mode:recent';
 
@@ -39,7 +44,7 @@ function DocRow({ doc, extra, onOpen }) {
     );
 }
 
-export default function DocumentPicker({ user, onOpen }) {
+export default function DocumentPicker({ onOpen }) {
     const [tasks, setTasks] = useState({ phase: 'loading', rows: [] });
     const [term, setTerm] = useState('');
     const [results, setResults] = useState(null);
@@ -47,10 +52,10 @@ export default function DocumentPicker({ user, onOpen }) {
     const recent = loadRecent();
 
     useEffect(() => {
-        api.getMyReviewTasks(user.id)
+        api.getMyOpenDocumentTasks()
             .then((rows) => setTasks({ phase: 'done', rows }))
             .catch((e) => setTasks({ phase: 'error', rows: [], message: e.message }));
-    }, [user.id]);
+    }, []);
 
     const search = async (e) => {
         e.preventDefault();
@@ -89,10 +94,10 @@ export default function DocumentPicker({ user, onOpen }) {
                 )}
 
                 <section>
-                    <h2>My open review tasks</h2>
+                    <h2>My document tasks</h2>
                     {tasks.phase === 'loading' && <p className="rm-muted">Loading tasks…</p>}
                     {tasks.phase === 'error' && <p className="rm-muted">Tasks unavailable: {tasks.message}</p>}
-                    {tasks.phase === 'done' && !tasks.rows.length && <p className="rm-muted">No open workflow tasks on documents.</p>}
+                    {tasks.phase === 'done' && !tasks.rows.length && <p className="rm-muted">No document tasks assigned or available to you.</p>}
                     {tasks.rows.length > 0 && (
                         <ul className="rm-doclist">
                             {tasks.rows.map((t) => (
@@ -100,7 +105,15 @@ export default function DocumentPicker({ user, onOpen }) {
                                     key={`${t.taskId}-${t.docId}`}
                                     doc={t.doc}
                                     onOpen={onOpen}
-                                    extra={<> · <strong>{t.label}</strong>{t.due ? ` · due ${formatDate(t.due)}` : ''}</>}
+                                    extra={(
+                                        <>
+                                            {' · '}
+                                            <span className={`rm-pill rm-pill--${t.status}`}>{t.status === 'assigned' ? 'Assigned' : 'Available'}</span>
+                                            {' '}
+                                            <strong>{t.label}</strong>
+                                            {t.due ? ` · due ${formatDueDate(t.due)}` : ''}
+                                        </>
+                                    )}
                                 />
                             ))}
                         </ul>

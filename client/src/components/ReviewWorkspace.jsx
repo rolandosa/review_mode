@@ -313,6 +313,17 @@ export default function ReviewWorkspace({ docRef, user, onExit }) {
                         {doc && (
                             <span className="rm-doc-title__meta">
                                 {doc.number} · v{doc.major}.{doc.minor} · <span className="rm-status">{doc.status}</span>
+                                {engagement.task && (
+                                    <>
+                                        {' · '}
+                                        <span className="rm-task" title={engagement.task.label}>
+                                            <span className={`rm-pill rm-pill--${engagement.task.status}`}>
+                                                {engagement.task.status === 'assigned' ? 'Assigned' : 'Available'}
+                                            </span>
+                                            {engagement.task.label}
+                                        </span>
+                                    </>
+                                )}
                             </span>
                         )}
                     </div>

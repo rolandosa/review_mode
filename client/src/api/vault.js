@@ -183,40 +183,52 @@ export async function searchDocuments(term) {
 }
 
 /**
- * Lists documents on the current user's open workflow tasks (MLR review, approval, etc.).
+ * Open document workflow tasks for the current user: tasks assigned to them and tasks available
+ * for them to accept (e.g. a participant-group pool). The tasks endpoint applies Vault's own
+ * eligibility rules for "available"; VQL then maps each task to its documents.
  */
-export async function getMyReviewTasks(userId) {
-    const tasks = await query(
-        'SELECT id, label__sys, due_date__sys, status__sys, (SELECT document_id__sys FROM active_workflow_task_items__sysr) '
-        + `FROM active_workflow_task__sys WHERE owner__sys = ${vqlString(userId)} `
-        + "AND status__sys CONTAINS ('active__v', 'available__sys') ORDER BY due_date__sys ASC LIMIT 100",
+export async function getMyOpenDocumentTasks() {
+    const json = await request('/objects/objectworkflows/tasks?assignee__v=me()&status__v=available__v,assigned__v&page_size=1000');
+    const tasks = json.data || [];
+    if (!tasks.length) return [];
+    const items = await query(
+        `SELECT task__sys, document_id__sys FROM active_workflow_task_item__sys WHERE task__sys CONTAINS (${tasks.map((t) => Number(t.id)).join(', ')})`,
     );
-    const rows = tasks.flatMap((task) => (task.active_workflow_task_items__sysr?.data || [])
-        .filter((item) => item.document_id__sys)
-        .map((item) => ({ taskId: task.id, label: task.label__sys, due: task.due_date__sys, docId: String(item.document_id__sys) })));
-    if (!rows.length) return [];
-    const docs = await query(`SELECT ${DOC_FIELDS} FROM documents WHERE id CONTAINS (${[...new Set(rows.map((r) => r.docId))].join(', ')})`);
-    const byId = Object.fromEntries(docs.map((d) => [String(d.id), d]));
-    return rows.filter((r) => byId[r.docId]).map((r) => ({ ...r, doc: byId[r.docId] }));
+    const docIds = [...new Set(items.map((i) => i.document_id__sys).filter(Boolean).map(String))];
+    if (!docIds.length) return [];
+    const docs = await query(`SELECT ${DOC_FIELDS} FROM documents WHERE id CONTAINS (${docIds.join(', ')})`);
+    const docsById = Object.fromEntries(docs.map((d) => [String(d.id), d]));
+    const tasksById = Object.fromEntries(tasks.map((t) => [String(t.id), t]));
+    return items
+        .filter((i) => i.document_id__sys && docsById[String(i.document_id__sys)] && tasksById[String(i.task__sys)])
+        .map((i) => {
+            const t = tasksById[String(i.task__sys)];
+            return {
+                taskId: String(t.id),
+                label: t.label__v,
+                instructions: t.instructions__v,
+                status: t.status__v?.includes('assigned__v') ? 'assigned' : 'available',
+                due: t.due_date__v,
+                workflowId: String(t.workflow__v ?? ''),
+                docId: String(i.document_id__sys),
+                doc: docsById[String(i.document_id__sys)],
+            };
+        })
+        .sort((x, y) => (x.status === y.status ? String(x.due || '9').localeCompare(String(y.due || '9')) : x.status === 'assigned' ? -1 : 1));
+}
+
+/**
+ * The current user's open task on this document (assigned first, then available), if any.
+ * Time is only tracked while one exists.
+ */
+export async function findMyTaskForDocument(docId) {
+    const rows = await getMyOpenDocumentTasks();
+    const row = rows.find((r) => r.docId === String(docId));
+    return row ? { id: row.taskId, label: row.label, status: row.status, due: row.due, workflowId: row.workflowId } : null;
 }
 
 export function vaultDocumentUrl(doc) {
     return `${window.location.origin}/ui/#doc_info/${doc.id}/${doc.major}/${doc.minor}`;
-}
-
-/**
- * The current user's open workflow task on this document, if any. Time is only tracked
- * while one exists.
- */
-export async function findMyTaskForDocument(userId, docId) {
-    const tasks = await query(
-        'SELECT id, label__sys, workflow__sys, status__sys, (SELECT document_id__sys FROM active_workflow_task_items__sysr) '
-        + `FROM active_workflow_task__sys WHERE owner__sys = ${vqlString(userId)} `
-        + "AND status__sys CONTAINS ('active__v', 'available__sys') ORDER BY assigned_date__sys DESC LIMIT 100",
-    );
-    const task = tasks.find((t) => (t.active_workflow_task_items__sysr?.data || [])
-        .some((item) => String(item.document_id__sys) === String(docId)));
-    return task ? { id: String(task.id), label: task.label__sys, workflowId: String(task.workflow__sys ?? '') } : null;
 }
 
 const TIME_LOG_OBJECT = 'review_time_log__c';
