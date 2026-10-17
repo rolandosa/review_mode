@@ -1,23 +1,39 @@
 #!/usr/bin/env bash
-# Builds the client distribution, uploads it, and creates the Page and Tab components.
+# Deploys Review Mode to a Vault: client distribution, then the Page and Tab (MDL).
+#
 #   VAULT_HOST=myvault.veevavault.com VAULT_SESSION=<session id> ./deploy.sh
+#
+# VAULT_SESSION may be omitted when a proxy already authenticates requests to VAULT_HOST.
 set -euo pipefail
-: "${VAULT_HOST:?Set VAULT_HOST}"
-: "${VAULT_SESSION:?Set VAULT_SESSION}"
-cd "$(dirname "$0")"
 
-npm ci
-npm run build
+: "${VAULT_HOST:?Set VAULT_HOST, e.g. myvault.veevavault.com}"
+API="https://${VAULT_HOST}/api"
+VERSION="${VAULT_API_VERSION:-v26.2}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+AUTH=(-H "X-VaultAPI-ClientID: review-mode-deploy")
+[[ -n "${VAULT_SESSION:-}" ]] && AUTH+=(-H "Authorization: ${VAULT_SESSION}")
 
-curl -sS --fail-with-body "https://${VAULT_HOST}/api/v26.2/uicode/distributions" \
-    -H "Authorization: ${VAULT_SESSION}" \
-    -F "file=@distribution.zip"
-echo
+check() {
+  if ! grep -q '"responseStatus" *: *"SUCCESS"' <<<"$1"; then
+    echo "FAILED: $1" >&2
+    exit 1
+  fi
+}
 
-for component in ../components/Page.review_mode__c.mdl ../components/Tab.review_mode__c.mdl; do
-    curl -sS --fail-with-body "https://${VAULT_HOST}/api/mdl/execute" \
-        -H "Authorization: ${VAULT_SESSION}" \
-        -H "Content-Type: text/plain" \
-        --data-binary "@${component}"
-    echo
+echo "▶ Building client code"
+(cd "$ROOT/client" && npm ci --silent && npm run -s build)
+
+# The Page component references the distribution, so upload the code first.
+echo "▶ Uploading client distribution review_mode__c"
+out=$(curl -sS "${AUTH[@]}" -F "file=@${ROOT}/client/distribution.zip" "${API}/${VERSION}/uicode/distributions")
+check "$out"
+
+echo "▶ Running MDL (page, tab)"
+for f in "$ROOT"/components/Page.review_mode__c.mdl "$ROOT"/components/Tab.review_mode__c.mdl; do
+  out=$(curl -sS "${AUTH[@]}" -H "Content-Type: text/plain" --data-binary "@$f" "${API}/mdl/execute")
+  check "$out"
+  echo "   ✓ $(basename "$f" .mdl)"
 done
+
+echo "✅ Done. Open https://${VAULT_HOST}/ui/#custom/page/review-mode"
+echo "   Users other than Vault Owners need View on the Review Mode page and tab via a permission set."
