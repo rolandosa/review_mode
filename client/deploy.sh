@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploys Review Mode to a Vault: client distribution, then the Page and Tab (MDL).
+# Deploys Review Mode to a Vault: client distribution, then the time log object, Page and Tab (MDL).
 #
 #   VAULT_HOST=myvault.veevavault.com VAULT_SESSION=<session id> ./deploy.sh
 #
@@ -28,12 +28,12 @@ echo "▶ Uploading client distribution review_mode__c"
 out=$(curl -sS "${AUTH[@]}" -F "file=@${ROOT}/client/distribution.zip" "${API}/${VERSION}/uicode/distributions")
 check "$out"
 
-echo "▶ Running MDL (page, tab)"
-for f in "$ROOT"/components/Page.review_mode__c.mdl "$ROOT"/components/Tab.review_mode__c.mdl; do
+echo "▶ Running MDL (object, page, tab)"
+for f in "$ROOT"/components/Object.review_time_log__c.mdl "$ROOT"/components/Page.review_mode__c.mdl "$ROOT"/components/Tab.review_mode__c.mdl; do
   out=$(curl -sS "${AUTH[@]}" -H "Content-Type: text/plain" --data-binary "@$f" "${API}/mdl/execute")
   check "$out"
   echo "   ✓ $(basename "$f" .mdl)"
 done
 
 echo "✅ Done. Open https://${VAULT_HOST}/ui/#custom/page/review-mode"
-echo "   Users other than Vault Owners need View on the Review Mode page and tab via a permission set."
+echo "   Users other than Vault Owners need View on the Review Mode page and tab, and Create/Edit on Review Time Log, via a permission set."

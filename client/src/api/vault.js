@@ -203,3 +203,43 @@ export async function getMyReviewTasks(userId) {
 export function vaultDocumentUrl(doc) {
     return `${window.location.origin}/ui/#doc_info/${doc.id}/${doc.major}/${doc.minor}`;
 }
+
+/**
+ * The current user's open workflow task on this document, if any. Time is only tracked
+ * while one exists.
+ */
+export async function findMyTaskForDocument(userId, docId) {
+    const tasks = await query(
+        'SELECT id, label__sys, workflow__sys, status__sys, (SELECT document_id__sys FROM active_workflow_task_items__sysr) '
+        + `FROM active_workflow_task__sys WHERE owner__sys = ${vqlString(userId)} `
+        + "AND status__sys CONTAINS ('active__v', 'available__sys') ORDER BY assigned_date__sys DESC LIMIT 100",
+    );
+    const task = tasks.find((t) => (t.active_workflow_task_items__sysr?.data || [])
+        .some((item) => String(item.document_id__sys) === String(docId)));
+    return task ? { id: String(task.id), label: task.label__sys, workflowId: String(task.workflow__sys ?? '') } : null;
+}
+
+const TIME_LOG_OBJECT = 'review_time_log__c';
+
+function firstRecordId(json) {
+    const record = json.data?.[0];
+    if (record?.responseStatus !== 'SUCCESS') {
+        throw new VaultApiError(record?.errors?.map((e) => e.message).join('; ') || 'Vault rejected the time log', record?.errors);
+    }
+    return String(record.data.id);
+}
+
+/** Creates or updates a review time log record; returns its ID. `keepalive` lets the final save outlive the page. */
+export async function saveTimeLog(id, fields, { keepalive = false } = {}) {
+    const response = await vaultApiClient.fetch(`/${API_VERSION}/vobjects/${TIME_LOG_OBJECT}`, {
+        method: id ? 'PUT' : 'POST',
+        keepalive,
+        headers: { 'X-VaultAPI-ClientID': CLIENT_ID, Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify([id ? { id, ...fields } : fields]),
+    });
+    const json = await response.json();
+    if (json.responseStatus === 'FAILURE') {
+        throw new VaultApiError(json.errors?.map((e) => e.message).join('; ') || 'Time log save failed', json.errors);
+    }
+    return firstRecordId(json);
+}

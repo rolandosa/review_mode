@@ -437,6 +437,12 @@
 .rm-cell.is-current { outline: 2px solid var(--rm-accent); outline-offset: 1px; }
 .rm-cell__dot { position: absolute; top: 3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--rm-note); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
 .rm-coverage__actions { display: flex; gap: 4px; flex: none; }
+.rm-timer { display: flex; align-items: center; gap: 6px; flex: none; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rm-timer__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rm-muted); }
+.rm-timer--active .rm-timer__dot { background: var(--rm-success); animation: rm-pulse 2s ease-in-out infinite; }
+.rm-timer--error { color: var(--rm-danger); }
+.rm-timer--error .rm-timer__dot { background: var(--rm-danger); }
+@keyframes rm-pulse { 50% { opacity: 0.35; } }
 
 /* ---------- modal ---------- */
 

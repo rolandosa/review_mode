@@ -5,6 +5,7 @@ import { compareReadingOrder, FAMILIES, matchesFilters, pageOf } from '../annota
 import useFullscreen from '../hooks/useFullscreen';
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 import useReviewProgress from '../hooks/useReviewProgress';
+import useEngagementTime from '../hooks/useEngagementTime';
 import PageView from './PageView';
 import AnnotationPanel from './AnnotationPanel';
 import SearchPanel from './SearchPanel';
@@ -46,6 +47,8 @@ export default function ReviewWorkspace({ docRef, user, onExit }) {
 
     const fullscreen = useFullscreen(rootRef);
     const progress = useReviewProgress(doc || { versionId: `${docRef.id}_pending` }, user.id);
+    const engagement = useEngagementTime({ doc, userId: user.id, rootRef, pagesViewed: progress.viewed.size });
+    const { recordAction } = engagement;
 
     // ---- loading -------------------------------------------------------------------------
     useEffect(() => {
@@ -232,16 +235,18 @@ export default function ReviewWorkspace({ docRef, user, onExit }) {
 
     const saveDraft = useCallback(async ({ comment, color }) => {
         const created = await api.createNote(doc, { comment, color, placemark: draft.placemark });
+        recordAction('annotation');
         setDraft(null);
         setTool('select');
         await reloadAnnotations();
         if (created?.id__sys) setSelectedId(String(created.id__sys));
-    }, [doc, draft, reloadAnnotations]);
+    }, [doc, draft, reloadAnnotations, recordAction]);
 
     const setState = useCallback(async (annotation, state) => {
         await api.setAnnotationState(doc, annotation.id__sys, state);
+        recordAction('state');
         setAnnotations((prev) => prev.map((a) => (a.id__sys === annotation.id__sys ? { ...a, state__sys: state } : a)));
-    }, [doc]);
+    }, [doc, recordAction]);
 
     // ---- keyboard --------------------------------------------------------------------------
     const nextUnviewed = useCallback(() => {
@@ -462,7 +467,10 @@ export default function ReviewWorkspace({ docRef, user, onExit }) {
                                 onSaveDraft={saveDraft}
                                 onCancelDraft={() => setDraft(null)}
                                 onSetState={setState}
-                                onReplied={reloadAnnotations}
+                                onReplied={() => {
+                                    recordAction('reply');
+                                    return reloadAnnotations();
+                                }}
                             />
                         )}
                         {panel === 'search' && pdfDoc && (
@@ -481,6 +489,7 @@ export default function ReviewWorkspace({ docRef, user, onExit }) {
                     onGo={(n) => goToPage(n, 'smooth')}
                     onNextUnviewed={nextUnviewed}
                     onReset={progress.reset}
+                    timeTracking={engagement}
                 />
             )}
 

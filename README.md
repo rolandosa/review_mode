@@ -16,7 +16,35 @@ brings real benefits for reviewers. See [docs/viewer-decision.md](docs/viewer-de
 - **Create notes:** sticky (`S`, click), area (`A`, drag), or page-level (`G`). Notes are saved to Vault as standard `note__sys` annotations.
 - **Whole-document search** (`/`) with per-page snippets and highlights.
 - **Continuous scroll** with fit-width, fit-page, and zoom (`0`, `9`, `+`, `-`). Pages render lazily.
+- **Time on task:** while the document is on one of the reviewer's open workflow tasks, Review Mode measures active review time and saves it to Vault. See *Review time tracking* below.
 - **Document picker:** the reviewer's open workflow tasks, VQL search, and recent documents. Deep link with `?doc=<id>&version=<major.minor>`.
+
+## Review time tracking
+
+When a reviewer opens a document that is on one of their open workflow tasks (`active_workflow_task__sys`, owned by them, status
+`active__v` or `available__sys`), Review Mode measures how long they actually work on it:
+
+- **Active time** counts one second at a time, but only while the page is visible, the browser window has focus, and the reviewer
+  has interacted with the workspace in the last 60 seconds: mouse movement, scrolling, keys, touch, typing, or creating, replying
+  to, or resolving annotations. Activity elsewhere in Vault doesn't count.
+- **Open time** counts every second the page is visible, so you can compare it with active time.
+- Each review session creates one **Review Time Log** (`review_time_log__c`) record on the first active second, then updates it every
+  30 seconds and when the reviewer hides or leaves the page. The record carries the document, version, task, workflow, active and
+  open seconds, annotations created, replies added, pages viewed, session start and last activity. `created_by__v` is the reviewer.
+- The reviewer sees a **Time on task** indicator in the bottom bar. It pulses while active, shows *paused* when idle, and flags
+  failed saves. Nothing is tracked on documents without an assigned task.
+
+Total active review time per task, across sessions:
+
+```sql
+SELECT task_id__c, task_label__c, document_number__c, created_by__v, active_seconds__c, open_seconds__c
+FROM review_time_log__c WHERE workflow_id__c = '1234'
+```
+
+Sum `active_seconds__c` by `task_id__c` (or build a Vault report on the object grouped by task and created-by).
+
+Reviewers need **Create** and **Edit** on *Review Time Log* in their permission set. Without it, the indicator shows *not saved* and
+review itself is unaffected. The idle window is `IDLE_AFTER_MS` in `client/src/hooks/useEngagementTime.js`.
 
 ## Project layout
 
@@ -31,7 +59,7 @@ client/                      Custom Page client code (React + pdf.js, bundled wi
   src/hooks/                 Full screen, keyboard shortcuts, review progress
   dev/                       Local harness that mimics the Custom Page runtime
   distribution-manifest.json
-components/                  MDL for the Page and Tab components
+components/                  MDL for the Page, Tab and Review Time Log object
 docs/viewer-decision.md      Viewer evaluation and trade-offs
 ```
 
@@ -48,9 +76,9 @@ VAULT_HOST=myvault.veevavault.com VAULT_SESSION=<session id> ./deploy.sh
 ```
 
 `deploy.sh` runs `npm ci && npm run build`, uploads `distribution.zip` to `/api/v26.2/uicode/distributions`, and runs the MDL in
-`components/` to create the `review_mode__c` Page and Tab. Then:
+`components/` to create the `review_time_log__c` object and the `review_mode__c` Page and Tab. Then:
 
-1. **Admin → Users & Groups → Permission Sets → Pages:** grant *View* on *Review Mode* to reviewer permission sets, and grant the tab.
+1. **Admin → Users & Groups → Permission Sets:** give reviewer permission sets *View* on the *Review Mode* page and tab, and *Create*/*Edit* on the *Review Time Log* object.
 2. Open the **Review Mode** tab, or deep link: `https://<vault>/ui/#custom/page/review-mode?doc=1234`.
 3. Optional: add `disable_chrome(true)` to the Page MDL to hide the Vault header permanently. Full-screen mode hides it on demand either way.
 

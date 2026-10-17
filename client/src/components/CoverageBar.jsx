@@ -1,8 +1,26 @@
+import { formatDuration, IDLE_AFTER_MS } from '../hooks/useEngagementTime';
+
+function TimeOnTask({ tracking }) {
+    if (!tracking || tracking.status === 'checking' || tracking.status === 'off') return null;
+    const state = tracking.status === 'error' ? 'error' : tracking.isActive ? 'active' : 'idle';
+    const title = state === 'error'
+        ? 'Time on task could not be saved to Vault. It will retry while you keep reviewing.'
+        : `Active review time on your task "${tracking.task?.label || 'Review'}". Counts while this page is focused and you interacted in the last ${IDLE_AFTER_MS / 1000} seconds; saved to Vault as a Review Time Log.`;
+    return (
+        <div className={`rm-timer rm-timer--${state}`} title={title} aria-live="off">
+            <span className="rm-timer__dot" aria-hidden="true" />
+            <span>Time on task {formatDuration(tracking.activeSeconds)}</span>
+            {state === 'idle' && <span className="rm-muted">· paused</span>}
+            {state === 'error' && <span>· not saved</span>}
+        </div>
+    );
+}
+
 /**
  * Page-coverage strip: one cell per page, filled once the reviewer has dwelt on it.
  * Dots mark pages that carry (filtered) annotations. Click a cell to jump to that page.
  */
-export default function CoverageBar({ total, viewed, currentPage, annotationPages, onGo, onNextUnviewed, onReset }) {
+export default function CoverageBar({ total, viewed, currentPage, annotationPages, onGo, onNextUnviewed, onReset, timeTracking }) {
     const count = viewed.size;
     const pct = total ? Math.round((count / total) * 100) : 0;
     const complete = total > 0 && count >= total;
@@ -30,6 +48,7 @@ export default function CoverageBar({ total, viewed, currentPage, annotationPage
                     );
                 })}
             </div>
+            <TimeOnTask tracking={timeTracking} />
             <div className="rm-coverage__actions">
                 {!complete && (
                     <button type="button" className="rm-btn rm-btn--small" onClick={onNextUnviewed} title="Next unreviewed page (U)">
