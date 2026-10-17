@@ -1,5 +1,6 @@
 import * as esbuild from 'esbuild';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -24,6 +25,33 @@ const pdfWorkerSourcePlugin = {
     },
 };
 
+/**
+ * pdf.js needs extra binary resources: WebAssembly image decoders (JPEG 2000, JBIG2, ICC color),
+ * the standard 14 fonts for PDFs that don't embed them, and CMaps for CJK text. With no stable URL
+ * for files in a Custom Page distribution, they are embedded as base64 and served to pdf.js by the
+ * factories in src/pdf/pdfjs.js, decoded only when a document actually needs one.
+ */
+const pdfResourcesPlugin = {
+    name: 'pdf-resources',
+    setup(build) {
+        build.onResolve({ filter: /^virtual:pdf-resources$/ }, () => ({ path: 'pdf-resources', namespace: 'pdf-resources' }));
+        build.onLoad({ filter: /.*/, namespace: 'pdf-resources' }, async () => {
+            const root = dirname(require.resolve('pdfjs-dist/package.json'));
+            const embed = async (dir, test) => {
+                const files = (await readdir(join(root, dir))).filter(test).sort();
+                const entries = await Promise.all(files.map(async (f) => [f, (await readFile(join(root, dir, f))).toString('base64')]));
+                return Object.fromEntries(entries);
+            };
+            const resources = {
+                wasm: await embed('wasm', (f) => f.endsWith('.wasm')),
+                standardFonts: await embed('standard_fonts', (f) => /\.(pfb|ttf)$/.test(f)),
+                cMaps: await embed('cmaps', (f) => f.endsWith('.bcmap')),
+            };
+            return { contents: `export default ${JSON.stringify(resources)};`, loader: 'js' };
+        });
+    },
+};
+
 await esbuild.build({
     entryPoints: ['src/index.jsx'],
     bundle: true,
@@ -35,6 +63,6 @@ await esbuild.build({
     jsx: 'automatic',
     loader: { '.svg': 'text' },
     define: { 'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production') },
-    plugins: [pdfWorkerSourcePlugin],
+    plugins: [pdfWorkerSourcePlugin, pdfResourcesPlugin],
     logLevel: 'info',
 });

@@ -1,5 +1,38 @@
 import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
 import workerSource from 'virtual:pdf-worker-source';
+import resources from 'virtual:pdf-resources';
+
+function decode(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+function embedded(group, name, kind) {
+    const data = resources[group][name];
+    if (!data) throw new Error(`pdf.js ${kind} "${name}" is not bundled`);
+    return decode(data);
+}
+
+// pdf.js asks these on the main thread (useWorkerFetch: false) and forwards the bytes to the worker.
+class EmbeddedWasmFactory {
+    async fetch({ filename }) {
+        return embedded('wasm', filename, 'decoder');
+    }
+}
+
+class EmbeddedStandardFontDataFactory {
+    async fetch({ filename }) {
+        return embedded('standardFonts', filename, 'font');
+    }
+}
+
+class EmbeddedCMapReaderFactory {
+    async fetch({ name }) {
+        return { cMapData: embedded('cMaps', `${name}.bcmap`, 'CMap'), isCompressed: true };
+    }
+}
 
 let workerReady = null;
 
@@ -44,6 +77,11 @@ export async function openPdf(arrayBuffer) {
         data: new Uint8Array(arrayBuffer),
         isEvalSupported: false,
         enableXfa: false,
+        useWorkerFetch: false,
+        WasmFactory: EmbeddedWasmFactory,
+        StandardFontDataFactory: EmbeddedStandardFontDataFactory,
+        CMapReaderFactory: EmbeddedCMapReaderFactory,
+        cMapPacked: true,
     }).promise;
 }
 
