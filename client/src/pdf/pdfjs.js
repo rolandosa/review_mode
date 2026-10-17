@@ -78,6 +78,10 @@ export async function openPdf(arrayBuffer) {
         isEvalSupported: false,
         enableXfa: false,
         useWorkerFetch: false,
+        // Draw glyph outlines on the canvas instead of registering each embedded font with the
+        // browser: the Custom Page runtime doesn't make page-registered fonts usable, which
+        // rendered every character as a box.
+        disableFontFace: true,
         WasmFactory: EmbeddedWasmFactory,
         StandardFontDataFactory: EmbeddedStandardFontDataFactory,
         CMapReaderFactory: EmbeddedCMapReaderFactory,
